@@ -1,6 +1,7 @@
 package com.mostafa.eticket.repository;
 
 import com.mostafa.eticket.configuration.JpaAuditingConfig;
+import com.mostafa.eticket.domain.Organization;
 import com.mostafa.eticket.domain.Priority;
 import com.mostafa.eticket.domain.Status;
 import com.mostafa.eticket.domain.Ticket;
@@ -23,7 +24,16 @@ class TicketRepositoryTest {
     @Autowired
     private TicketRepository ticketRepository;
 
-    private Ticket ticket(Status status) {
+    @Autowired
+    private OrganizationRepository organizationRepository;
+
+    private Organization organization() {
+        Organization organization = new Organization();
+        organization.setName("org-" + System.nanoTime());
+        return organizationRepository.save(organization);
+    }
+
+    private Ticket ticket(Status status, Organization organization) {
         Ticket ticket = new Ticket();
         ticket.setTitle("Database is down");
         ticket.setDescription("Cannot connect to the primary database");
@@ -31,23 +41,27 @@ class TicketRepositoryTest {
         ticket.setPriority(Priority.HIGH);
         ticket.setStatus(status);
         ticket.setDueDate(LocalDate.now().plusDays(2));
+        ticket.setOrganization(organization);
         return ticket;
     }
 
     @Test
     void savesTicketWithAuditTimestamps() {
-        Ticket saved = ticketRepository.save(ticket(Status.OPEN));
+        Organization organization = organization();
+        Ticket saved = ticketRepository.save(ticket(Status.OPEN, organization));
 
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.getUpdatedAt()).isNotNull();
         assertThat(saved.getStatus()).isEqualTo(Status.OPEN);
+        assertThat(saved.getOrganization().getId()).isEqualTo(organization.getId());
     }
 
     @Test
     void findsPageOfTicketsOrderedNewestFirst() {
-        Ticket first = ticketRepository.save(ticket(Status.OPEN));
-        Ticket second = ticketRepository.save(ticket(Status.IN_PROGRESS));
+        Organization organization = organization();
+        Ticket first = ticketRepository.save(ticket(Status.OPEN, organization));
+        Ticket second = ticketRepository.save(ticket(Status.IN_PROGRESS, organization));
 
         Page<Ticket> page = ticketRepository.findAll(
                 PageRequest.of(0, 20, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
@@ -59,8 +73,9 @@ class TicketRepositoryTest {
 
     @Test
     void filtersTicketsByStatus() {
-        ticketRepository.save(ticket(Status.OPEN));
-        ticketRepository.save(ticket(Status.IN_PROGRESS));
+        Organization organization = organization();
+        ticketRepository.save(ticket(Status.OPEN, organization));
+        ticketRepository.save(ticket(Status.IN_PROGRESS, organization));
 
         Page<Ticket> open = ticketRepository.findByStatus(Status.OPEN, PageRequest.of(0, 20));
         Page<Ticket> inProgress = ticketRepository.findByStatus(Status.IN_PROGRESS, PageRequest.of(0, 20));
@@ -71,7 +86,8 @@ class TicketRepositoryTest {
 
     @Test
     void statusFilterReturnsEmptyPageWhenNoMatches() {
-        ticketRepository.save(ticket(Status.RESOLVED));
+        Organization organization = organization();
+        ticketRepository.save(ticket(Status.RESOLVED, organization));
 
         Page<Ticket> closed = ticketRepository.findByStatus(Status.CLOSED, PageRequest.of(0, 20));
 
