@@ -9,8 +9,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.net.URI;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -56,7 +56,8 @@ public class TicketController {
   public ResponseEntity<TicketResponse> createTicket(
       @Valid @RequestBody CreateTicketRequest createTicketRequest) {
     TicketResponse ticketResponse = ticketService.createTicket(createTicketRequest);
-    return ResponseEntity.status(HttpStatus.CREATED).body(ticketResponse);
+    return ResponseEntity.created(URI.create("/api/v1/tickets/" + ticketResponse.getId()))
+        .body(ticketResponse);
   }
 
   @Operation(summary = "Update ticket", description = "Updates an existing ticket.")
@@ -82,7 +83,7 @@ public class TicketController {
         description = "Invalid status transition or invalid request"),
     @ApiResponse(responseCode = "404", description = "Ticket not found")
   })
-  @PutMapping("/{id}/status")
+  @PatchMapping("/{id}/status")
   public ResponseEntity<TicketResponse> changeTicketStatus(
       @PathVariable long id, @Valid @RequestBody StatusChangeRequest statusChangeRequest) {
     TicketResponse response = ticketService.changeStatus(id, statusChangeRequest);
