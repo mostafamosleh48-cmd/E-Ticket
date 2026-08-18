@@ -34,3 +34,4 @@ build/
 support-desk-api-prd.md
 milestones.md
 AGENTS.md
+.env
