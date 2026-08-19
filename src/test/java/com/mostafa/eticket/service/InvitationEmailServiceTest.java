@@ -58,7 +58,7 @@ class InvitationEmailServiceTest {
         assertThat(sent.getAllRecipients()[0].toString()).isEqualTo("viewer@b.com");
         assertThat(sent.getSubject()).isEqualTo("You're invited to E-Ticket");
         assertThat((String) sent.getContent())
-                .contains("http://localhost:8080/api/v1/auth/register/viewer?token=abc123")
+                .contains("http://localhost:8080/invitations/accept.html?token=abc123")
                 .contains("abc123")
                 .contains("2026-08-20 15:00");
     }

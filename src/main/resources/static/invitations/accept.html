@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Accept E-Ticket invitation</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .card { max-width: 520px; margin: 40px auto; background: #ffffff; border-radius: 8px;
+                overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background-color: #2563eb; color: #ffffff; padding: 24px 32px; }
+        .header h1 { margin: 0; font-size: 20px; }
+        .body { padding: 32px; color: #333333; font-size: 15px; line-height: 1.6; }
+        .hidden { display: none; }
+        .message { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; }
+        .message.success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .message.error { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .message.info { background-color: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+        code { display: block; word-break: break-all; background: #f1f5f9; padding: 12px;
+               border-radius: 6px; font-size: 13px; margin: 8px 0; }
+        input { width: 100%; padding: 10px 12px; margin: 6px 0; border: 1px solid #cbd5e1;
+                border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        button { background-color: #2563eb; color: #ffffff; border: none; padding: 12px 20px;
+                 border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        button.secondary { background-color: #f1f5f9; color: #2563eb; }
+        h2 { font-size: 17px; margin: 24px 0 8px; }
+        label { font-size: 13px; color: #475569; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <h1>E-Ticket invitation</h1>
+    </div>
+    <div class="body">
+        <div id="status" class="message info">Accepting your invitation…</div>
+
+        <div id="result" class="hidden">
+            <div class="message success">
+                <strong>You're in.</strong> Your invitation has been accepted and your viewer account is now
+                linked to the inviting agent's organization.
+            </div>
+            <p>You can now access your organization's tickets with your account.</p>
+        </div>
+
+        <div id="error" class="hidden"></div>
+
+        <div id="register" class="hidden">
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;"/>
+            <h2>New to E-Ticket? Register as a viewer</h2>
+            <p style="font-size: 13px; color: #475569;">
+                Invitations are tied to the account the agent invited. If you don't have an account yet,
+                create one below, then ask the agent to invite that username.
+            </p>
+            <form onsubmit="register(event)">
+                <label for="regUsername">Username</label>
+                <input id="regUsername" name="username" maxlength="50" required/>
+                <label for="regEmail">Email</label>
+                <input id="regEmail" name="email" type="email" required/>
+                <label for="regPassword">Password (min 8 characters)</label>
+                <input id="regPassword" name="password" type="password" minlength="8" maxlength="72" required/>
+                <button type="submit">Register</button>
+            </form>
+            <div id="registerResult"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const statusEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+    const errorEl = document.getElementById('error');
+    const registerEl = document.getElementById('register');
+
+    function showError(message) {
+        statusEl.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        errorEl.classList.add('message', 'error');
+        errorEl.textContent = message;
+        registerEl.classList.remove('hidden');
+    }
+
+    async function accept() {
+        if (!token) {
+            showError('This link is missing an invitation token. Check the full link from your email.');
+            return;
+        }
+        try {
+            const res = await fetch('/api/v1/auth/invitations/accept', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({token: token})
+            });
+            const body = await res.json();
+            if (res.ok) {
+                statusEl.classList.add('hidden');
+                resultEl.classList.remove('hidden');
+                sessionStorage.setItem('eticket.token', body.token);
+            } else {
+                showError(body.message || 'The invitation could not be accepted.');
+            }
+        } catch (e) {
+            showError('Could not reach the server. Please try again.');
+        }
+    }
+
+    async function register(event) {
+        event.preventDefault();
+        const resultEl = document.getElementById('registerResult');
+        const payload = {
+            username: document.getElementById('regUsername').value.trim(),
+            email: document.getElementById('regEmail').value.trim(),
+            password: document.getElementById('regPassword').value
+        };
+        try {
+            const res = await fetch('/api/v1/auth/register/viewer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const body = await res.json();
+            if (res.ok) {
+                resultEl.className = 'message success';
+                resultEl.textContent = 'Account created for "' + payload.username +
+                    '". This invitation belongs to a different account, so ask the agent to invite ' +
+                    payload.username + ', then open the new invitation link.';
+            } else {
+                resultEl.className = 'message error';
+                resultEl.textContent = body.message || 'Registration failed.';
+            }
+        } catch (e) {
+            resultEl.className = 'message error';
+            resultEl.textContent = 'Could not reach the server. Please try again.';
+        }
+    }
+
+    accept();
+</script>
+</body>
+</html>

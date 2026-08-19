@@ -85,22 +85,31 @@ class TicketScopingTest {
         return ((Number) JsonPath.read(result.getResponse().getContentAsString(), "$.id")).longValue();
     }
 
-    private String inviteViewer(String agentToken, String email) throws Exception {
+    private String inviteViewer(String agentToken, String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/invitations")
                         .header("Authorization", "Bearer " + agentToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\"}"))
+                        .content("{\"username\":\"" + username + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
     }
 
-    private String registerViewer(String token, String username) throws Exception {
+    private String registerViewerSelf(String username, String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register/viewer")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + token + "\",\"username\":\"" + username
-                                + "\",\"password\":\"secret123\"}"))
+                        .content("{\"username\":\"" + username + "\",\"password\":\"secret123\","
+                                + "\"email\":\"" + email + "\"}"))
                 .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+    }
+
+    private String acceptInvitation(String token) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/invitations/accept")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + token + "\"}"))
+                .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
     }
@@ -175,8 +184,9 @@ class TicketScopingTest {
     void viewerCanReadOwnOrganizationButCannotWrite() throws Exception {
         String alice = registerAgent("scope-alice4", "ScopeAcme4");
         long ticketId = createTicket(alice, ticketJson());
-        String invite = inviteViewer(alice, "viewer4@b.com");
-        String viewer = registerViewer(invite, "scope-viewer4");
+        registerViewerSelf("scope-viewer4", "viewer4@b.com");
+        String invite = inviteViewer(alice, "scope-viewer4");
+        String viewer = acceptInvitation(invite);
 
         mockMvc.perform(get("/api/v1/tickets/" + ticketId)
                         .header("Authorization", "Bearer " + viewer))
@@ -267,17 +277,19 @@ class TicketScopingTest {
     @Test
     void invitationNotStoredWhenEmailFails() throws Exception {
         String alice = registerAgent("scope-alice7", "ScopeAcme7");
+        registerViewerSelf("fail-viewer", "fail@b.com");
         doThrow(new InvitationEmailException(
                 "Failed to send invitation to fail@b.com", new RuntimeException()))
                 .when(invitationEmailService).sendInvitation(anyString(), anyString(), any(LocalDateTime.class));
 
+        long invitationsBefore = invitationRepository.count();
         mockMvc.perform(post("/api/v1/auth/invitations")
                         .header("Authorization", "Bearer " + alice)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"fail@b.com\"}"))
+                        .content("{\"username\":\"fail-viewer\"}"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status").value(500));
 
-        assertThat(invitationRepository.count()).isZero();
+        assertThat(invitationRepository.count()).isEqualTo(invitationsBefore);
     }
 }

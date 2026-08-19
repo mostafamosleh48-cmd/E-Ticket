@@ -21,8 +21,9 @@ public class Invitation {
     private Long id;
     @Column(unique = true, nullable = false)
     private String tokenHash;
-    @Column(nullable = false)
-    private String email;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;

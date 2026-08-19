@@ -1,19 +1,17 @@
 package com.mostafa.eticket.dto.auth;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class InvitationResponse {
+public class AcceptInvitationRequest {
 
+    @NotBlank
     private String token;
-    private String username;
-    private LocalDateTime expiresAt;
 }

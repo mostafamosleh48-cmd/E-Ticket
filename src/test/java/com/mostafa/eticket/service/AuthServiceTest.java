@@ -4,6 +4,7 @@ import com.mostafa.eticket.domain.Invitation;
 import com.mostafa.eticket.domain.Organization;
 import com.mostafa.eticket.domain.Role;
 import com.mostafa.eticket.domain.User;
+import com.mostafa.eticket.dto.auth.AcceptInvitationRequest;
 import com.mostafa.eticket.dto.auth.InvitationRequest;
 import com.mostafa.eticket.dto.auth.InvitationResponse;
 import com.mostafa.eticket.dto.auth.LoginRequest;
@@ -84,9 +85,18 @@ class AuthServiceTest {
         return user;
     }
 
+    private User viewerUser() {
+        User user = new User();
+        user.setId(10L);
+        user.setUsername("viewer");
+        user.setEmail("viewer@b.com");
+        user.setRole(Role.VIEWER);
+        return user;
+    }
+
     private Invitation invitation(LocalDateTime expiresAt) {
         Invitation invitation = new Invitation();
-        invitation.setEmail("viewer@b.com");
+        invitation.setUser(viewerUser());
         invitation.setOrganization(org(5L));
         invitation.setExpiresAt(expiresAt);
         return invitation;
@@ -163,18 +173,20 @@ class AuthServiceTest {
     }
 
     @Test
-    void createInvitationStoresHashNotRawToken() {
+    void createInvitationStoresHashNotRawTokenAndLinksUser() {
         when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
+        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(viewerUser()));
 
         InvitationResponse response = authService.createInvitation(
-                new InvitationRequest("viewer@b.com"), new AuthUser("agent", Role.AGENT, 5L));
+                new InvitationRequest("viewer"), new AuthUser("agent", Role.AGENT, 5L));
 
-        assertThat(response.getEmail()).isEqualTo("viewer@b.com");
+        assertThat(response.getUsername()).isEqualTo("viewer");
         assertThat(response.getExpiresAt()).isAfter(LocalDateTime.now());
         verify(invitationRepository).save(argThat(inv ->
                 inv.getTokenHash() != null
                         && inv.getTokenHash().length() == 64
                         && !inv.getTokenHash().equals(response.getToken())
+                        && inv.getUser().getId() == 10L
                         && inv.getOrganization().getId() == 5L
                         && inv.getExpiresAt().isAfter(LocalDateTime.now())));
         verify(invitationEmailService).sendInvitation(eq("viewer@b.com"), eq(response.getToken()), any(LocalDateTime.class));
@@ -183,82 +195,130 @@ class AuthServiceTest {
     @Test
     void createInvitationRejectsNonAgent() {
         assertThatThrownBy(() -> authService.createInvitation(
-                new InvitationRequest("viewer@b.com"), new AuthUser("viewer", Role.VIEWER, 5L)))
+                new InvitationRequest("viewer"), new AuthUser("viewer", Role.VIEWER, 5L)))
                 .isInstanceOf(InvalidInvitationException.class);
         verifyNoInteractions(invitationRepository);
         verifyNoInteractions(invitationEmailService);
     }
 
     @Test
+    void createInvitationRejectsUnknownViewer() {
+        when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
+        when(userRepository.findByUsername("nobody")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.createInvitation(
+                new InvitationRequest("nobody"), new AuthUser("agent", Role.AGENT, 5L)))
+                .isInstanceOf(InvalidInvitationException.class);
+        verifyNoInteractions(invitationRepository);
+        verifyNoInteractions(invitationEmailService);
+    }
+
+    @Test
+    void createInvitationRejectsNonViewerRole() {
+        when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(agentUser()));
+
+        assertThatThrownBy(() -> authService.createInvitation(
+                new InvitationRequest("alice"), new AuthUser("agent", Role.AGENT, 5L)))
+                .isInstanceOf(InvalidInvitationException.class);
+        verifyNoInteractions(invitationRepository);
+    }
+
+    @Test
+    void createInvitationRejectsViewerAlreadyInOrganization() {
+        User viewer = viewerUser();
+        viewer.setOrganization(org(9L));
+        when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
+        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(viewer));
+
+        assertThatThrownBy(() -> authService.createInvitation(
+                new InvitationRequest("viewer"), new AuthUser("agent", Role.AGENT, 5L)))
+                .isInstanceOf(InvalidInvitationException.class);
+        verifyNoInteractions(invitationRepository);
+    }
+
+    @Test
     void createInvitationPropagatesEmailFailure() {
         when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
+        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(viewerUser()));
         doThrow(new InvitationEmailException(
                 "Failed to send invitation to viewer@b.com", new RuntimeException()))
                 .when(invitationEmailService).sendInvitation(anyString(), anyString(), any(LocalDateTime.class));
 
         assertThatThrownBy(() -> authService.createInvitation(
-                new InvitationRequest("viewer@b.com"), new AuthUser("agent", Role.AGENT, 5L)))
+                new InvitationRequest("viewer"), new AuthUser("agent", Role.AGENT, 5L)))
                 .isInstanceOf(InvitationEmailException.class);
         verify(invitationRepository).save(any(Invitation.class));
     }
 
     @Test
-    void registerViewerConsumesInvitationAndCreatesUser() {
-        Invitation invitation = invitation(LocalDateTime.now().plusHours(1));
-        when(invitationRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invitation));
+    void registerViewerSelfCreatesPendingViewerWithNoOrganization() {
         when(passwordEncoder.encode("secret123")).thenReturn("encoded-hash");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        authService.registerViewer(new RegisterViewerRequest("some-token", "viewer", "secret123"));
+        authService.registerViewerSelf(new RegisterViewerRequest("viewer", "viewer@b.com", "secret123"));
 
-        assertThat(invitation.getUsedAt()).isNotNull();
         verify(userRepository).save(argThat(u -> u.getUsername().equals("viewer")
                 && u.getEmail().equals("viewer@b.com")
                 && u.getRole() == Role.VIEWER
-                && u.getOrganization().getId() == 5L
+                && u.getOrganization() == null
                 && u.getPasswordHash().equals("encoded-hash")));
     }
 
     @Test
-    void registerViewerRejectsUnknownToken() {
+    void registerViewerSelfRejectsDuplicateUsername() {
+        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(new User()));
+
+        assertThatThrownBy(() -> authService.registerViewerSelf(
+                new RegisterViewerRequest("viewer", "viewer@b.com", "secret123")))
+                .isInstanceOf(DuplicateUserException.class);
+        verifyNoInteractions(passwordEncoder);
+    }
+
+    @Test
+    void acceptInvitationConsumesInvitationAssignsOrganizationAndReturnsFreshToken() {
+        Invitation invitation = invitation(LocalDateTime.now().plusHours(1));
+        when(invitationRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invitation));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(invitation.getUser()));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(jwtService.generateToken(invitation.getUser())).thenReturn("fresh-jwt");
+        when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+
+        LoginResponse response = authService.acceptInvitation(new AcceptInvitationRequest("some-token"));
+
+        assertThat(invitation.getUsedAt()).isNotNull();
+        assertThat(invitation.getUser().getOrganization()).isNotNull();
+        assertThat(invitation.getUser().getOrganization().getId()).isEqualTo(5L);
+        assertThat(response.getToken()).isEqualTo("fresh-jwt");
+        verify(userRepository).save(argThat(u -> u.getOrganization() != null
+                && u.getOrganization().getId() == 5L));
+    }
+
+    @Test
+    void acceptInvitationRejectsUnknownToken() {
         when(invitationRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.registerViewer(
-                new RegisterViewerRequest("nope", "viewer", "secret123")))
+        assertThatThrownBy(() -> authService.acceptInvitation(new AcceptInvitationRequest("nope")))
                 .isInstanceOf(InvalidInvitationException.class);
     }
 
     @Test
-    void registerViewerRejectsExpiredToken() {
+    void acceptInvitationRejectsExpiredToken() {
         Invitation invitation = invitation(LocalDateTime.now().minusHours(1));
         when(invitationRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invitation));
 
-        assertThatThrownBy(() -> authService.registerViewer(
-                new RegisterViewerRequest("some-token", "viewer", "secret123")))
+        assertThatThrownBy(() -> authService.acceptInvitation(new AcceptInvitationRequest("some-token")))
                 .isInstanceOf(InvalidInvitationException.class);
         assertThat(invitation.getUsedAt()).isNull();
     }
 
     @Test
-    void registerViewerRejectsUsedToken() {
+    void acceptInvitationRejectsUsedToken() {
         Invitation invitation = invitation(LocalDateTime.now().plusHours(1));
         invitation.setUsedAt(LocalDateTime.now());
         when(invitationRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invitation));
 
-        assertThatThrownBy(() -> authService.registerViewer(
-                new RegisterViewerRequest("some-token", "viewer", "secret123")))
+        assertThatThrownBy(() -> authService.acceptInvitation(new AcceptInvitationRequest("some-token")))
                 .isInstanceOf(InvalidInvitationException.class);
-    }
-
-    @Test
-    void registerViewerRejectsDuplicateUsername() {
-        Invitation invitation = invitation(LocalDateTime.now().plusHours(1));
-        when(invitationRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invitation));
-        when(userRepository.findByUsername("viewer")).thenReturn(Optional.of(new User()));
-
-        assertThatThrownBy(() -> authService.registerViewer(
-                new RegisterViewerRequest("some-token", "viewer", "secret123")))
-                .isInstanceOf(DuplicateUserException.class);
-        assertThat(invitation.getUsedAt()).isNull();
     }
 }

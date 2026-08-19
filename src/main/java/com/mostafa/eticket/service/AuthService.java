@@ -4,6 +4,7 @@ import com.mostafa.eticket.domain.Invitation;
 import com.mostafa.eticket.domain.Organization;
 import com.mostafa.eticket.domain.Role;
 import com.mostafa.eticket.domain.User;
+import com.mostafa.eticket.dto.auth.AcceptInvitationRequest;
 import com.mostafa.eticket.dto.auth.InvitationRequest;
 import com.mostafa.eticket.dto.auth.InvitationResponse;
 import com.mostafa.eticket.dto.auth.LoginRequest;
@@ -104,21 +105,48 @@ public class AuthService {
         Organization organization = organizationRepository.findById(caller.organizationId())
                 .orElseThrow(() -> new InvalidInvitationException("Organization not found"));
 
+        User viewer = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new InvalidInvitationException(
+                        "No viewer account found for username: " + request.getUsername()));
+        if (viewer.getRole() != Role.VIEWER) {
+            throw new InvalidInvitationException("Only viewers can be invited: " + request.getUsername());
+        }
+        if (viewer.getOrganization() != null) {
+            throw new InvalidInvitationException(
+                    "Viewer already belongs to an organization: " + request.getUsername());
+        }
+
         String rawToken = generateInvitationToken();
 
         Invitation invitation = new Invitation();
         invitation.setTokenHash(hashToken(rawToken));
-        invitation.setEmail(request.getEmail());
+        invitation.setUser(viewer);
         invitation.setOrganization(organization);
         invitation.setExpiresAt(LocalDateTime.now().plus(invitationDuration));
         invitationRepository.save(invitation);
-        invitationEmailService.sendInvitation(request.getEmail(), rawToken, invitation.getExpiresAt());
+        invitationEmailService.sendInvitation(viewer.getEmail(), rawToken, invitation.getExpiresAt());
 
-        return new InvitationResponse(rawToken, request.getEmail(), invitation.getExpiresAt());
+        return new InvitationResponse(rawToken, viewer.getUsername(), invitation.getExpiresAt());
     }
 
     @Transactional
-    public LoginResponse registerViewer(RegisterViewerRequest request) {
+    public LoginResponse registerViewerSelf(RegisterViewerRequest request) {
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new DuplicateUserException("Username already taken: " + request.getUsername());
+        }
+
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setRole(Role.VIEWER);
+        user = userRepository.save(user);
+
+        return loginResponseFor(user);
+    }
+
+    @Transactional
+    public LoginResponse acceptInvitation(AcceptInvitationRequest request) {
         Invitation invitation = invitationRepository.findByTokenHash(hashToken(request.getToken()))
                 .orElseThrow(() -> new InvalidInvitationException("Invitation not found"));
         if (invitation.getUsedAt() != null) {
@@ -127,17 +155,10 @@ public class AuthService {
         if (invitation.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new InvalidInvitationException("Invitation has expired");
         }
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new DuplicateUserException("Username already taken: " + request.getUsername());
-        }
 
+        User user = userRepository.findById(invitation.getUser().getId())
+                .orElseThrow(() -> new InvalidInvitationException("Viewer not found"));
         invitation.setUsedAt(LocalDateTime.now());
-
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setEmail(invitation.getEmail());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setRole(Role.VIEWER);
         user.setOrganization(invitation.getOrganization());
         user = userRepository.save(user);
 

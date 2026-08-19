@@ -1,5 +1,6 @@
 package com.mostafa.eticket.dto.auth;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -14,11 +15,12 @@ import lombok.Setter;
 public class RegisterViewerRequest {
 
     @NotBlank
-    private String token;
-
-    @NotBlank
     @Size(max = 50)
     private String username;
+
+    @NotBlank
+    @Email
+    private String email;
 
     @NotBlank
     @Size(min = 8, max = 72)

@@ -18,7 +18,7 @@ import java.util.Map;
 @Service
 public class InvitationEmailService {
 
-    private static final String REGISTER_PATH = "/api/v1/auth/register/viewer";
+    private static final String ACCEPT_PATH = "/invitations/accept.html";
     private static final DateTimeFormatter EXPIRY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final JavaMailSender mailSender;
@@ -54,7 +54,7 @@ public class InvitationEmailService {
     }
 
     private String renderInvitation(String token, LocalDateTime expiresAt) {
-        String link = baseUrl + REGISTER_PATH + "?token=" + token;
+        String link = baseUrl + ACCEPT_PATH + "?token=" + token;
         Context context = new Context();
         context.setVariables(Map.of(
                 "link", link,
