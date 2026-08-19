@@ -11,6 +11,7 @@ import com.mostafa.eticket.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +58,7 @@ public class AuthController {
     @Operation(
             summary = "Invite a viewer",
             description = "Agent-only. Creates a single-use, expiring invitation token for a viewer email.")
+    @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Invitation created"),
         @ApiResponse(responseCode = "400", description = "Only agents can invite, or invalid request"),
