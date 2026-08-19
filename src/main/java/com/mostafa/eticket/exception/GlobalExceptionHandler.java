@@ -4,6 +4,7 @@ import com.mostafa.eticket.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -73,6 +74,33 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(InvalidPageSizeException.class)
   public ResponseEntity<ErrorResponse> handleInvalidPageSizeException(InvalidPageSizeException ex) {
+    ErrorResponse response =
+        new ErrorResponse(
+            LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(), ex.getMessage(), null);
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+  }
+
+  @ExceptionHandler(BadCredentialsException.class)
+  public ResponseEntity<ErrorResponse> handleBadCredentialsException(BadCredentialsException ex) {
+    ErrorResponse response =
+        new ErrorResponse(
+            LocalDateTime.now(),
+            HttpStatus.UNAUTHORIZED.value(),
+            "Invalid username or password",
+            null);
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+  }
+
+  @ExceptionHandler(DuplicateUserException.class)
+  public ResponseEntity<ErrorResponse> handleDuplicateUserException(DuplicateUserException ex) {
+    ErrorResponse response =
+        new ErrorResponse(LocalDateTime.now(), HttpStatus.CONFLICT.value(), ex.getMessage(), null);
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+  }
+
+  @ExceptionHandler(InvalidInvitationException.class)
+  public ResponseEntity<ErrorResponse> handleInvalidInvitationException(
+      InvalidInvitationException ex) {
     ErrorResponse response =
         new ErrorResponse(
             LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(), ex.getMessage(), null);
