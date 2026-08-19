@@ -1,17 +1,24 @@
 package com.mostafa.eticket.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.mostafa.eticket.exception.InvitationEmailException;
+import com.mostafa.eticket.repository.InvitationRepository;
+import com.mostafa.eticket.service.InvitationEmailService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -26,6 +33,12 @@ class TicketScopingTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private InvitationRepository invitationRepository;
+
+    @MockitoBean
+    private InvitationEmailService invitationEmailService;
 
     private static String agentJson(String username, String orgName) {
         return "{\"username\":\"" + username + "\",\"email\":\"" + username + "@b.com\","
@@ -246,5 +259,22 @@ class TicketScopingTest {
                                 + "\"organizationId\":7}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("Only ADMIN")));
+    }
+
+    @Test
+    void invitationNotStoredWhenEmailFails() throws Exception {
+        String alice = registerAgent("scope-alice7", "ScopeAcme7");
+        doThrow(new InvitationEmailException(
+                "Failed to send invitation to fail@b.com", new RuntimeException()))
+                .when(invitationEmailService).sendInvitation(anyString(), anyString());
+
+        mockMvc.perform(post("/api/v1/auth/invitations")
+                        .header("Authorization", "Bearer " + alice)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"fail@b.com\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500));
+
+        assertThat(invitationRepository.count()).isZero();
     }
 }

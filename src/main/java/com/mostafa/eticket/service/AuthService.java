@@ -43,6 +43,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
     private final InvitationRepository invitationRepository;
+    private final InvitationEmailService invitationEmailService;
     private final Duration invitationDuration;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -52,6 +53,7 @@ public class AuthService {
                        UserRepository userRepository,
                        OrganizationRepository organizationRepository,
                        InvitationRepository invitationRepository,
+                       InvitationEmailService invitationEmailService,
                        @Value("${eticket.invitation.expiration}") Duration invitationDuration) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
@@ -59,6 +61,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.invitationRepository = invitationRepository;
+        this.invitationEmailService = invitationEmailService;
         this.invitationDuration = invitationDuration;
     }
 
@@ -109,6 +112,7 @@ public class AuthService {
         invitation.setOrganization(organization);
         invitation.setExpiresAt(LocalDateTime.now().plus(invitationDuration));
         invitationRepository.save(invitation);
+        invitationEmailService.sendInvitation(request.getEmail(), rawToken);
 
         return new InvitationResponse(rawToken, request.getEmail(), invitation.getExpiresAt());
     }

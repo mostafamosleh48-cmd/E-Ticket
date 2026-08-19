@@ -11,6 +11,7 @@ import com.mostafa.eticket.dto.auth.LoginResponse;
 import com.mostafa.eticket.dto.auth.RegisterAgentRequest;
 import com.mostafa.eticket.dto.auth.RegisterViewerRequest;
 import com.mostafa.eticket.exception.DuplicateUserException;
+import com.mostafa.eticket.exception.InvitationEmailException;
 import com.mostafa.eticket.exception.InvalidInvitationException;
 import com.mostafa.eticket.repository.InvitationRepository;
 import com.mostafa.eticket.repository.OrganizationRepository;
@@ -35,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -48,6 +50,7 @@ class AuthServiceTest {
     private UserRepository userRepository;
     private OrganizationRepository organizationRepository;
     private InvitationRepository invitationRepository;
+    private InvitationEmailService invitationEmailService;
     private AuthService authService;
 
     @BeforeEach
@@ -58,8 +61,9 @@ class AuthServiceTest {
         userRepository = mock(UserRepository.class);
         organizationRepository = mock(OrganizationRepository.class);
         invitationRepository = mock(InvitationRepository.class);
+        invitationEmailService = mock(InvitationEmailService.class);
         authService = new AuthService(authenticationManager, jwtService, passwordEncoder,
-                userRepository, organizationRepository, invitationRepository,
+                userRepository, organizationRepository, invitationRepository, invitationEmailService,
                 Duration.ofHours(24));
     }
 
@@ -172,6 +176,7 @@ class AuthServiceTest {
                         && !inv.getTokenHash().equals(response.getToken())
                         && inv.getOrganization().getId() == 5L
                         && inv.getExpiresAt().isAfter(LocalDateTime.now())));
+        verify(invitationEmailService).sendInvitation("viewer@b.com", response.getToken());
     }
 
     @Test
@@ -180,6 +185,20 @@ class AuthServiceTest {
                 new InvitationRequest("viewer@b.com"), new AuthUser("viewer", Role.VIEWER, 5L)))
                 .isInstanceOf(InvalidInvitationException.class);
         verifyNoInteractions(invitationRepository);
+        verifyNoInteractions(invitationEmailService);
+    }
+
+    @Test
+    void createInvitationPropagatesEmailFailure() {
+        when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
+        doThrow(new InvitationEmailException(
+                "Failed to send invitation to viewer@b.com", new RuntimeException()))
+                .when(invitationEmailService).sendInvitation(anyString(), anyString());
+
+        assertThatThrownBy(() -> authService.createInvitation(
+                new InvitationRequest("viewer@b.com"), new AuthUser("agent", Role.AGENT, 5L)))
+                .isInstanceOf(InvitationEmailException.class);
+        verify(invitationRepository).save(any(Invitation.class));
     }
 
     @Test
