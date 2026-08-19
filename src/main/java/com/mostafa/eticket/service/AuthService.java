@@ -112,7 +112,7 @@ public class AuthService {
         invitation.setOrganization(organization);
         invitation.setExpiresAt(LocalDateTime.now().plus(invitationDuration));
         invitationRepository.save(invitation);
-        invitationEmailService.sendInvitation(request.getEmail(), rawToken);
+        invitationEmailService.sendInvitation(request.getEmail(), rawToken, invitation.getExpiresAt());
 
         return new InvitationResponse(rawToken, request.getEmail(), invitation.getExpiresAt());
     }

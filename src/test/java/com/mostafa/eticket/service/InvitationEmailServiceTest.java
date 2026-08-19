@@ -8,6 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.thymeleaf.spring6.SpringTemplateEngine;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,25 +29,38 @@ class InvitationEmailServiceTest {
     @BeforeEach
     void setUp() {
         mailSender = mock(JavaMailSender.class);
-        emailService = new InvitationEmailService(mailSender, "mostafamosleh48@gmail.com");
+        emailService = new InvitationEmailService(mailSender, testTemplateEngine(),
+                "http://localhost:8080", "E-Ticket Support", "mostafamosleh48@gmail.com");
+    }
+
+    private SpringTemplateEngine testTemplateEngine() {
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("templates/");
+        resolver.setSuffix(".html");
+        resolver.setTemplateMode("HTML");
+        resolver.setCharacterEncoding("UTF-8");
+        SpringTemplateEngine engine = new SpringTemplateEngine();
+        engine.setTemplateResolver(resolver);
+        return engine;
     }
 
     @Test
-    void sendsInvitationToRecipientWithTokenInBody() throws Exception {
+    void sendsInvitationToRecipientWithTokenAndConfigurableLink() throws Exception {
         when(mailSender.createMimeMessage()).thenReturn(new MimeMessage((Session) null));
 
-        emailService.sendInvitation("viewer@b.com", "abc123");
+        emailService.sendInvitation("viewer@b.com", "abc123", LocalDateTime.of(2026, 8, 20, 15, 0));
 
         ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
         verify(mailSender).send(captor.capture());
         MimeMessage sent = captor.getValue();
 
-        assertThat(sent.getFrom()[0].toString()).isEqualTo("mostafamosleh48@gmail.com");
+        assertThat(sent.getFrom()[0].toString()).isEqualTo("E-Ticket Support <mostafamosleh48@gmail.com>");
         assertThat(sent.getAllRecipients()[0].toString()).isEqualTo("viewer@b.com");
         assertThat(sent.getSubject()).isEqualTo("You're invited to E-Ticket");
         assertThat((String) sent.getContent())
+                .contains("http://localhost:8080/api/v1/auth/register/viewer?token=abc123")
                 .contains("abc123")
-                .contains("/api/v1/auth/register/viewer");
+                .contains("2026-08-20 15:00");
     }
 
     @Test
@@ -52,7 +69,8 @@ class InvitationEmailServiceTest {
         doThrow(new MailSendException("SMTP rejected"))
                 .when(mailSender).send(any(MimeMessage.class));
 
-        assertThatThrownBy(() -> emailService.sendInvitation("viewer@b.com", "abc123"))
+        assertThatThrownBy(() -> emailService.sendInvitation(
+                "viewer@b.com", "abc123", LocalDateTime.now()))
                 .isInstanceOf(InvitationEmailException.class)
                 .hasMessageContaining("viewer@b.com");
     }

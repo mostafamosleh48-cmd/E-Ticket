@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -176,7 +177,7 @@ class AuthServiceTest {
                         && !inv.getTokenHash().equals(response.getToken())
                         && inv.getOrganization().getId() == 5L
                         && inv.getExpiresAt().isAfter(LocalDateTime.now())));
-        verify(invitationEmailService).sendInvitation("viewer@b.com", response.getToken());
+        verify(invitationEmailService).sendInvitation(eq("viewer@b.com"), eq(response.getToken()), any(LocalDateTime.class));
     }
 
     @Test
@@ -193,7 +194,7 @@ class AuthServiceTest {
         when(organizationRepository.findById(5L)).thenReturn(Optional.of(org(5L)));
         doThrow(new InvitationEmailException(
                 "Failed to send invitation to viewer@b.com", new RuntimeException()))
-                .when(invitationEmailService).sendInvitation(anyString(), anyString());
+                .when(invitationEmailService).sendInvitation(anyString(), anyString(), any(LocalDateTime.class));
 
         assertThatThrownBy(() -> authService.createInvitation(
                 new InvitationRequest("viewer@b.com"), new AuthUser("agent", Role.AGENT, 5L)))

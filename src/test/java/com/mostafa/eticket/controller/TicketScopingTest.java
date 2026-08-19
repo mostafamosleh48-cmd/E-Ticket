@@ -13,10 +13,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDateTime;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -266,7 +269,7 @@ class TicketScopingTest {
         String alice = registerAgent("scope-alice7", "ScopeAcme7");
         doThrow(new InvitationEmailException(
                 "Failed to send invitation to fail@b.com", new RuntimeException()))
-                .when(invitationEmailService).sendInvitation(anyString(), anyString());
+                .when(invitationEmailService).sendInvitation(anyString(), anyString(), any(LocalDateTime.class));
 
         mockMvc.perform(post("/api/v1/auth/invitations")
                         .header("Authorization", "Bearer " + alice)
