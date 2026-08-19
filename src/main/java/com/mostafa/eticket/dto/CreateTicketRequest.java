@@ -33,4 +33,6 @@ public class CreateTicketRequest {
     private Priority priority;
 
     private LocalDate dueDate;
+
+    private Long organizationId;
 }

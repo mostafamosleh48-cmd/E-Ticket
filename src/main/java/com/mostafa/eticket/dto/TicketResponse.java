@@ -25,4 +25,5 @@ public class TicketResponse {
     private LocalDate dueDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long organizationId;
 }

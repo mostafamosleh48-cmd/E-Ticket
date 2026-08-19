@@ -4,6 +4,7 @@ import com.mostafa.eticket.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -105,6 +106,21 @@ public class GlobalExceptionHandler {
         new ErrorResponse(
             LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(), ex.getMessage(), null);
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+  }
+
+  @ExceptionHandler(InvalidOrganizationException.class)
+  public ResponseEntity<ErrorResponse> handleInvalidOrganizationException(
+      InvalidOrganizationException ex) {
+    ErrorResponse response =
+        new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(), ex.getMessage(), null);
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex) {
+    ErrorResponse response =
+        new ErrorResponse(LocalDateTime.now(), HttpStatus.FORBIDDEN.value(), "Access denied", null);
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
   }
 
   @ExceptionHandler(Exception.class)

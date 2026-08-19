@@ -3,6 +3,7 @@ package com.mostafa.eticket.controller;
 import com.mostafa.eticket.domain.Status;
 import com.mostafa.eticket.domain.Ticket;
 import com.mostafa.eticket.dto.*;
+import com.mostafa.eticket.security.SecurityUtils;
 import com.mostafa.eticket.service.TicketService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Tickets", description = "APIs for managing tickets")
@@ -34,7 +36,7 @@ public class TicketController {
       @RequestParam(defaultValue = "10") int size,
       @RequestParam(required = false) Status status) {
 
-    return ResponseEntity.ok(ticketService.listTickets(page, size, status));
+    return ResponseEntity.ok(ticketService.listTickets(page, size, status, SecurityUtils.currentUser()));
   }
 
   @Operation(summary = "Get ticket by ID", description = "Returns a single ticket by its ID.")
@@ -44,7 +46,7 @@ public class TicketController {
   })
   @GetMapping("/{id}")
   public ResponseEntity<TicketResponse> getTicket(@PathVariable long id) {
-    return ResponseEntity.ok(ticketService.getTicket(id));
+    return ResponseEntity.ok(ticketService.getTicket(id, SecurityUtils.currentUser()));
   }
 
   @Operation(summary = "Create ticket", description = "Creates a new ticket.")
@@ -52,10 +54,11 @@ public class TicketController {
     @ApiResponse(responseCode = "201", description = "Ticket created successfully"),
     @ApiResponse(responseCode = "400", description = "Invalid ticket data")
   })
+  @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
   @PostMapping
   public ResponseEntity<TicketResponse> createTicket(
       @Valid @RequestBody CreateTicketRequest createTicketRequest) {
-    TicketResponse ticketResponse = ticketService.createTicket(createTicketRequest);
+    TicketResponse ticketResponse = ticketService.createTicket(createTicketRequest, SecurityUtils.currentUser());
     return ResponseEntity.created(URI.create("/api/v1/tickets/" + ticketResponse.getId()))
         .body(ticketResponse);
   }
@@ -66,10 +69,11 @@ public class TicketController {
     @ApiResponse(responseCode = "400", description = "Invalid ticket data"),
     @ApiResponse(responseCode = "404", description = "Ticket not found")
   })
+  @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
   @PutMapping("/{id}")
   public ResponseEntity<TicketResponse> updateTicket(
       @PathVariable long id, @Valid @RequestBody UpdateTicketRequest updateTicketRequest) {
-    TicketResponse ticketResponse = ticketService.updateTicket(id, updateTicketRequest);
+    TicketResponse ticketResponse = ticketService.updateTicket(id, updateTicketRequest, SecurityUtils.currentUser());
     return ResponseEntity.ok(ticketResponse);
   }
 
@@ -83,10 +87,11 @@ public class TicketController {
         description = "Invalid status transition or invalid request"),
     @ApiResponse(responseCode = "404", description = "Ticket not found")
   })
+  @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
   @PatchMapping("/{id}/status")
   public ResponseEntity<TicketResponse> changeTicketStatus(
       @PathVariable long id, @Valid @RequestBody StatusChangeRequest statusChangeRequest) {
-    TicketResponse response = ticketService.changeStatus(id, statusChangeRequest);
+    TicketResponse response = ticketService.changeStatus(id, statusChangeRequest, SecurityUtils.currentUser());
     return ResponseEntity.ok(response);
   }
 
@@ -95,9 +100,10 @@ public class TicketController {
     @ApiResponse(responseCode = "204", description = "Ticket deleted successfully"),
     @ApiResponse(responseCode = "404", description = "Ticket not found")
   })
+  @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> deleteTicket(@PathVariable long id) {
-    ticketService.deleteTicket(id);
+    ticketService.deleteTicket(id, SecurityUtils.currentUser());
     return ResponseEntity.noContent().build();
   }
 }

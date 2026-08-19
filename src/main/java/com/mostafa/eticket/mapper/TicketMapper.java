@@ -17,8 +17,10 @@ public interface TicketMapper {
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "organization", ignore = true)
     Ticket toEntity(CreateTicketRequest request);
 
+    @Mapping(target = "organizationId", source = "organization.id")
     TicketResponse toResponse(Ticket ticket);
 
     @Mapping(target = "id", ignore = true)
@@ -27,6 +29,7 @@ public interface TicketMapper {
     @Mapping(target = "dueDate", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "organization", ignore = true)
     void updateEntity(UpdateTicketRequest request, @MappingTarget Ticket ticket);
 
     default Status toStatus(StatusChangeRequest request) {

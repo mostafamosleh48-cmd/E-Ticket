@@ -1,5 +1,6 @@
 package com.mostafa.eticket.mapper;
 
+import com.mostafa.eticket.domain.Organization;
 import com.mostafa.eticket.domain.Priority;
 import com.mostafa.eticket.domain.Status;
 import com.mostafa.eticket.domain.Ticket;
@@ -41,6 +42,8 @@ class TicketMapperTest {
     }
 
     private Ticket ticket() {
+        Organization organization = new Organization();
+        organization.setId(9L);
         Ticket ticket = new Ticket();
         ticket.setId(1L);
         ticket.setTitle("Database is down");
@@ -51,6 +54,7 @@ class TicketMapperTest {
         ticket.setDueDate(LocalDate.of(2026, 8, 16));
         ticket.setCreatedAt(LocalDateTime.of(2026, 8, 15, 9, 0));
         ticket.setUpdatedAt(LocalDateTime.of(2026, 8, 15, 10, 30));
+        ticket.setOrganization(organization);
         return ticket;
     }
 
@@ -67,6 +71,7 @@ class TicketMapperTest {
         assertThat(entity.getDueDate()).isEqualTo(createRequest().getDueDate());
         assertThat(entity.getCreatedAt()).isNull();
         assertThat(entity.getUpdatedAt()).isNull();
+        assertThat(entity.getOrganization()).isNull();
     }
 
     @Test
@@ -82,6 +87,7 @@ class TicketMapperTest {
         assertThat(response.getDueDate()).isEqualTo(LocalDate.of(2026, 8, 16));
         assertThat(response.getCreatedAt()).isEqualTo(LocalDateTime.of(2026, 8, 15, 9, 0));
         assertThat(response.getUpdatedAt()).isEqualTo(LocalDateTime.of(2026, 8, 15, 10, 30));
+        assertThat(response.getOrganizationId()).isEqualTo(9L);
     }
 
     @Test

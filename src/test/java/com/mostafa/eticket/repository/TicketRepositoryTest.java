@@ -94,4 +94,43 @@ class TicketRepositoryTest {
         assertThat(closed.getContent()).isEmpty();
         assertThat(closed.getTotalElements()).isZero();
     }
+
+    @Test
+    void scopesTicketsByOrganization() {
+        Organization orgA = organization();
+        Organization orgB = organization();
+        ticketRepository.save(ticket(Status.OPEN, orgA));
+        ticketRepository.save(ticket(Status.OPEN, orgB));
+
+        Page<Ticket> pageA = ticketRepository.findByOrganization_Id(orgA.getId(), PageRequest.of(0, 20));
+        Page<Ticket> pageB = ticketRepository.findByOrganization_Id(orgB.getId(), PageRequest.of(0, 20));
+
+        assertThat(pageA.getContent()).hasSize(1);
+        assertThat(pageA.getContent().get(0).getOrganization().getId()).isEqualTo(orgA.getId());
+        assertThat(pageB.getContent()).hasSize(1);
+        assertThat(pageB.getContent().get(0).getOrganization().getId()).isEqualTo(orgB.getId());
+    }
+
+    @Test
+    void scopesTicketsByOrganizationAndStatus() {
+        Organization organization = organization();
+        ticketRepository.save(ticket(Status.OPEN, organization));
+        ticketRepository.save(ticket(Status.CLOSED, organization));
+
+        Page<Ticket> open = ticketRepository.findByOrganization_IdAndStatus(
+                organization.getId(), Status.OPEN, PageRequest.of(0, 20));
+
+        assertThat(open.getContent()).hasSize(1);
+        assertThat(open.getContent().get(0).getStatus()).isEqualTo(Status.OPEN);
+    }
+
+    @Test
+    void findsTicketByIdAndOrganizationOnlyWhenSameOrganization() {
+        Organization orgA = organization();
+        Organization orgB = organization();
+        Ticket owned = ticketRepository.save(ticket(Status.OPEN, orgA));
+
+        assertThat(ticketRepository.findByIdAndOrganization_Id(owned.getId(), orgA.getId())).isPresent();
+        assertThat(ticketRepository.findByIdAndOrganization_Id(owned.getId(), orgB.getId())).isEmpty();
+    }
 }
